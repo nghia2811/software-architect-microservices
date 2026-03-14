@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Production overrides for docker-compose.yaml
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    ports: []   # Don't expose DB port publicly
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  redis:
+    ports: []   # Don't expose Redis port publicly
+
+  order-service:
+    image: ${REGISTRY}/order-service:${IMAGE_TAG:-latest}
+    build: ~    # Use pre-built image, don't build
+    environment:
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+  notification-service:
+    image: ${REGISTRY}/notification-service:${IMAGE_TAG:-latest}
+    build: ~
+
+  frontend:
+    image: ${REGISTRY}/frontend:${IMAGE_TAG:-latest}
+    build: ~
+    restart: unless-stopped

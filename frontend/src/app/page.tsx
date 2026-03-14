@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Toaster, toast } from 'sonner'
 
-const ORDER_URL = 'http://localhost:8081'
-const NOTIF_HEALTH_URL = 'http://localhost:8082/health'
-const WS_URL = 'ws://localhost:8082/ws'
+const ORDER_URL = process.env.NEXT_PUBLIC_ORDER_URL ?? 'http://localhost:8081'
+const NOTIF_HEALTH_URL = (process.env.NEXT_PUBLIC_NOTIF_URL ?? 'http://localhost:8082') + '/health'
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8082/ws'
 
 type ServiceState = 'green' | 'red' | 'checking'
 
