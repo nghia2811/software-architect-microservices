@@ -1,0 +1,27 @@
+version: '3.8'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FlashOrder – Monolith stack
+# Used for performance comparison against the microservices docker-compose.yaml
+#
+# Usage:
+#   docker compose -f docker-compose.monolith.yml up -d
+#   docker compose -f docker-compose.monolith.yml down
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  monolith:
+    build: ./monolith
+    container_name: flashorder-monolith
+    ports:
+      - "8090:8090"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
