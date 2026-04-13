@@ -95,7 +95,8 @@ for i in 0 1 2 3 4; do
         --argjson a "$AMOUNT" \
         '{customerName: $c, productName: $p, amount: $a}')
 
-    echo -e "  ${YELLOW}→${RESET} Order $((i+1))/5: ${CUSTOMER} • ${PRODUCT} • $(printf '%\047d' $AMOUNT) VND"
+    FORMATTED_AMOUNT=$(python3 -c "print(f'{$AMOUNT:,}')" 2>/dev/null || echo "$AMOUNT")
+    echo -e "  ${YELLOW}→${RESET} Order $((i+1))/5: ${CUSTOMER} • ${PRODUCT} • ${FORMATTED_AMOUNT} VND"
 
     RESPONSE=$(curl -sf \
         -X POST "${BASE_URL}/orders" \

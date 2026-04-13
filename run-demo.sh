@@ -70,11 +70,44 @@ step()    { echo -e "  ${DIM}→${RESET} $*"; }
 
 require_cmd() {
     if ! command -v "$1" &>/dev/null; then
+        if [[ "$1" == "k6" ]]; then
+            # k6 not installed locally — use Docker image transparently
+            if command -v docker &>/dev/null; then
+                warn "k6 not found locally — will use Docker (grafana/k6) instead"
+                USE_DOCKER_K6=true
+                return 0
+            fi
+        fi
         err "Required command not found: ${BOLD}$1${RESET}"
         echo "    Install it first, then re-run."
         exit 1
     fi
 }
+
+# Wrapper: run k6 locally or via Docker (macOS: localhost → host.docker.internal)
+run_k6() {
+    if [[ "${USE_DOCKER_K6:-false}" != "true" ]]; then
+        k6 "$@"
+        return
+    fi
+    # Remap args for running inside Docker container
+    local docker_args=()
+    for arg in "$@"; do
+        # localhost → host.docker.internal (container can't reach host's localhost)
+        arg="${arg//localhost/host.docker.internal}"
+        # k6/xxx.js → /k6/xxx.js (volume is mounted at /k6)
+        if [[ "$arg" == k6/*.js ]]; then
+            arg="/k6/${arg#k6/}"
+        fi
+        docker_args+=("$arg")
+    done
+    docker run --rm \
+        -v "${SCRIPT_DIR}/k6:/k6" \
+        -v "${SCRIPT_DIR}/results:/results" \
+        grafana/k6 "${docker_args[@]}"
+}
+
+USE_DOCKER_K6=false
 
 wait_for_url() {
     local url="$1"
@@ -142,7 +175,7 @@ cmd_smoke() {
     require_cmd k6
 
     section "Running smoke test (5 VUs × 30 s)..."
-    k6 run \
+    run_k6 run \
         --env BASE_URL="${MS_BASE_URL}" \
         "${K6_DIR}/smoke-test.js"
 }
@@ -157,9 +190,9 @@ cmd_load() {
     info "Ramp: 0→50→200→50 VUs over 5 minutes"
     echo ""
 
-    k6 run \
+    run_k6 run \
         --env BASE_URL="${MS_BASE_URL}" \
-        --out "json=${RESULTS_DIR}/load-microservices.json" \
+        --out "json=/results/load-microservices.json" \
         "${K6_DIR}/load-test.js" || true
 
     echo ""
@@ -174,9 +207,9 @@ cmd_load() {
     section "Phase 3 – Load testing MONOLITH (port 8090)..."
     echo ""
 
-    k6 run \
+    run_k6 run \
         --env BASE_URL="${MONO_BASE_URL}" \
-        --out "json=${RESULTS_DIR}/load-monolith.json" \
+        --out "json=/results/load-monolith.json" \
         "${K6_DIR}/load-test.js" || true
 
     echo ""
@@ -207,9 +240,9 @@ cmd_stress() {
     echo ""
 
     section "Running stress test against microservices..."
-    k6 run \
+    run_k6 run \
         --env BASE_URL="${MS_BASE_URL}" \
-        --out "json=${RESULTS_DIR}/stress-microservices.json" \
+        --out "json=/results/stress-microservices.json" \
         "${K6_DIR}/stress-test.js" || true
 
     echo ""

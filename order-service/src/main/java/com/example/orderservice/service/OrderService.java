@@ -11,7 +11,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +23,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
+    public Optional<Order> getOrderById(Long id) {
+        return orderRepository.findById(id);
+    }
 
     public Order createOrder(OrderRequest request) {
         Order order = new Order();
