@@ -48,12 +48,14 @@ public class OrderService {
 
     private void publishOrderEvent(Order order) {
         try {
+            long publishedAt = System.currentTimeMillis();
             Map<String, Object> event = new HashMap<>();
             event.put("orderId", order.getId());
             event.put("customerName", order.getCustomerName());
             event.put("productName", order.getProductName());
             event.put("amount", order.getAmount());
             event.put("createdAt", order.getCreatedAt().toString());
+            event.put("publishedAt", publishedAt);  // epoch ms, để đo async latency
 
             String message = objectMapper.writeValueAsString(event);
             redisTemplate.convertAndSend("order_events", message);

@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -62,7 +63,14 @@ async def redis_subscriber():
 
             async for message in pubsub.listen():
                 if message["type"] == "message":
+                    received_at = int(time.time() * 1000)  # epoch ms
                     data = json.loads(message["data"])
+                    published_at = data.get("publishedAt")
+                    if published_at:
+                        redis_latency = received_at - published_at
+                        logger.info(
+                            f"[Timing] Order #{data['orderId']} | Redis Pub→Sub latency: {redis_latency}ms"
+                        )
                     log_msg = f"[Redis Subscriber] Đã nhận đơn hàng #{data['orderId']} cho khách hàng {data['customerName']}"
                     logger.info(log_msg)
                     await manager.broadcast(json.dumps(data))

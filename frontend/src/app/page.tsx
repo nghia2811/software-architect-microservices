@@ -22,6 +22,9 @@ interface HealthState {
   notification: ServiceState
 }
 
+// Map orderId → { t1: time submit, t2: time HTTP response }
+const timings = new Map<number, { t1: number; t2: number }>()
+
 export default function Home() {
   const [form, setForm] = useState({ customerName: '', productName: '', amount: '' })
   const [loading, setLoading] = useState(false)
@@ -40,9 +43,22 @@ export default function Home() {
     }
 
     ws.onmessage = (e) => {
+      const t3 = performance.now()
       const data: OrderEvent = JSON.parse(e.data)
-      toast.success(`Đơn hàng #${data.orderId} da duoc xu ly`, {
-        description: `Khach hang: ${data.customerName} | San pham: ${data.productName} | ${Number(data.amount).toLocaleString('vi-VN')} VND`,
+
+      const timing = timings.get(data.orderId)
+      if (timing) {
+        const httpMs = Math.round(timing.t2 - timing.t1)
+        const asyncMs = Math.round(t3 - timing.t2)
+        const totalMs = Math.round(t3 - timing.t1)
+        console.log(
+          `[Timing] Order #${data.orderId} | HTTP: ${httpMs}ms | Async (Redis→WS): ${asyncMs}ms | Total: ${totalMs}ms`
+        )
+        timings.delete(data.orderId)
+      }
+
+      toast.success(`Đơn hàng #${data.orderId} đã được xử lý`, {
+        description: `Khách hàng: ${data.customerName} | sản phẩm: ${data.productName} | ${Number(data.amount).toLocaleString('vi-VN')} VND`,
         duration: 6000,
       })
       setEvents((prev) => [data, ...prev].slice(0, 20))
@@ -94,6 +110,7 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    const t1 = performance.now()
     try {
       const res = await fetch(`${ORDER_URL}/orders`, {
         method: 'POST',
@@ -104,12 +121,15 @@ export default function Home() {
           amount: parseFloat(form.amount),
         }),
       })
+      const t2 = performance.now()
       if (res.ok) {
         const order = await res.json()
-        toast.info(`Da tao don hang #${order.id} – cho thong bao tu Notification Service...`)
+        timings.set(order.id, { t1, t2 })
+        console.log(`[Timing] Order #${order.id} | HTTP round-trip: ${Math.round(t2 - t1)}ms`)
+        toast.info(`Đã tạo đơn hàng #${order.id} – cho thông báo từ Notification Service...`)
         setForm({ customerName: '', productName: '', amount: '' })
       } else {
-        toast.error('Tao don hang that bai!')
+        toast.error('Tạo đơn hàng thất bại!')
       }
     } catch {
       toast.error('Khong the ket noi den Order Service!')
@@ -159,25 +179,25 @@ export default function Home() {
 
       {/* Order Form */}
       <div className="card">
-        <h2>Tao Don Hang Moi</h2>
+        <h2>Tạo đơn hàng mới</h2>
         <form className="form" onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Ten khach hang"
+            placeholder="Tên khách hàng"
             value={form.customerName}
             onChange={(e) => setForm({ ...form, customerName: e.target.value })}
             required
           />
           <input
             type="text"
-            placeholder="Ten san pham"
+            placeholder="Tên sản phẩm"
             value={form.productName}
             onChange={(e) => setForm({ ...form, productName: e.target.value })}
             required
           />
           <input
             type="number"
-            placeholder="So tien (VND)"
+            placeholder="Số tiền (VND)"
             value={form.amount}
             onChange={(e) => setForm({ ...form, amount: e.target.value })}
             required
@@ -185,7 +205,7 @@ export default function Home() {
             step="0.01"
           />
           <button type="submit" disabled={loading}>
-            {loading ? 'Dang xu ly...' : 'Dat hang'}
+            {loading ? 'Đang xử lý...' : 'Đặt hàng'}
           </button>
         </form>
       </div>
@@ -194,12 +214,12 @@ export default function Home() {
       <div className="card">
         <h2>Real-time Order Events</h2>
         {events.length === 0 ? (
-          <p className="log-empty">Chua co su kien nao. Hay dat hang de xem thong bao real-time.</p>
+          <p className="log-empty">Chưa có sự kiện nào. Hãy đặt hàng để xem thông báo real-time.</p>
         ) : (
           <ul className="log-list">
             {events.map((ev) => (
               <li key={`${ev.orderId}-${ev.createdAt}`} className="log-item">
-                [{ev.createdAt?.split('T')[1]?.slice(0, 8) ?? ''}] Da nhan don hang #{ev.orderId} cho khach hang {ev.customerName} — {ev.productName}
+                [{ev.createdAt?.split('T')[1]?.slice(0, 8) ?? ''}] Đã nhận đơn hàng #{ev.orderId} cho khách hàng {ev.customerName} — {ev.productName}
               </li>
             ))}
           </ul>
